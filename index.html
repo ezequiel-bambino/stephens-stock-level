@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bambino Stock</title>
+
+<style>
+
+body{
+font-family:Arial;
+font-size:20px;
+padding:30px;
+text-align:center;
+}
+
+.logo{
+width:200px;
+display:block;
+margin:auto;
+margin-bottom:15px;
+}
+
+h2{
+margin-bottom:5px;
+}
+
+.date{
+font-size:18px;
+color:#666;
+margin-bottom:10px;
+}
+
+.row{
+display:grid;
+grid-template-columns:auto 60px 90px 60px 120px;
+align-items:center;
+gap:14px;
+margin-bottom:24px;
+max-width:650px;
+margin-left:auto;
+margin-right:auto;
+}
+
+.ingredientBox{
+text-align:left;
+}
+
+.ingredient{
+font-weight:600;
+}
+
+.unit{
+font-size:14px;
+color:#666;
+margin-top:2px;
+}
+
+input{
+width:70px;
+font-size:22px;
+text-align:center;
+}
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button{
+-webkit-appearance:none;
+margin:0;
+}
+
+input[type=number]{
+-moz-appearance:textfield;
+}
+
+button{
+font-size:22px;
+padding:8px 16px;
+}
+
+.order{
+text-align:left;
+}
+
+.order .ingredient{
+font-weight:600;
+font-size:22px;
+}
+
+.order .unit{
+font-size:14px;
+color:#666;
+margin-top:2px;
+}
+
+#submitBtn{
+font-size:26px;
+padding:14px 40px;
+margin-top:25px;
+display:block;
+margin:auto;
+}
+
+#resetBtn{
+font-size:26px;
+padding:14px 40px;
+margin-top:20px;
+display:none;
+}
+
+.note{
+margin-top:18px;
+font-size:18px;
+color:#444;
+}
+
+/* MOBILE LAYOUT */
+
+
+</style>
+</head>
+
+<body>
+
+<img src="icon.png" class="logo">
+
+<h2>Stephens Daily Stock</h2>
+
+<div id="todayDate" class="date"></div>
+
+<div id="lastSubmit" class="date" style="font-size:16px;"></div>
+
+<div id="form"></div>
+
+<button id="submitBtn" onclick="submitStock()">SUBMIT</button>
+
+<button id="resetBtn" onclick="newForm()">NEW STOCK</button>
+
+<div class="note">
+Check again that everything is correct before submitting.
+</div>
+
+<script>
+
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw__xtFbjLgxo3eAGqr5D9z-3vmf3xfyWagPpfOFyanaIKWF3nc8NjdVcRdNnr_buLa/exec";
+
+function setDate(){
+
+const today = new Date();
+
+const options = { weekday:'long', day:'numeric', month:'long' };
+
+document.getElementById("todayDate").innerText =
+today.toLocaleDateString('en-GB',options);
+
+}
+
+async function loadIngredients(){
+
+const res = await fetch(`${SCRIPT_URL}?action=getIngredients`);
+
+const data = await res.json();
+
+showForm(data);
+
+}
+
+function showForm(data){
+
+const container = document.getElementById("form");
+
+container.innerHTML = "";
+
+data.forEach(item=>{
+
+const div = document.createElement("div");
+
+div.className = "row";
+
+div.innerHTML = `
+
+<div class="ingredientBox">
+
+<div class="ingredient">${item.name}</div>
+
+<div class="unit">${item.unit || ""}</div>
+
+</div>
+
+<div class="inputRow">
+
+<button onclick="change('${item.name}',-1)">-</button>
+
+<input
+type="number"
+id="${item.name}"
+min="0"
+inputmode="numeric"
+pattern="[0-9]*"
+onkeydown="moveNext(event)"
+>
+
+<button onclick="change('${item.name}',1)">+</button>
+
+</div>
+
+<div class="order" id="order_${item.name}"></div>
+
+`;
+
+container.appendChild(div);
+
+});
+
+const firstInput=document.querySelector("input");
+
+if(firstInput) firstInput.focus();
+
+}
+
+function change(id,val){
+
+const input=document.getElementById(id);
+
+let current = Number(input.value)||0;
+
+current += val;
+
+if(current < 0) current = 0;
+
+input.value = current;
+
+}
+
+function moveNext(event){
+
+if(event.key==="Enter"){
+
+event.preventDefault();
+
+const inputs = Array.from(document.querySelectorAll("input"));
+
+const index = inputs.indexOf(event.target);
+
+if(index>-1 && index<inputs.length-1){
+
+inputs[index+1].focus();
+
+}
+
+}
+
+}
+
+async function submitStock(){
+
+const inputs = document.querySelectorAll("input");
+
+const data=[];
+
+let missing=false;
+
+inputs.forEach(i=>{
+
+if(i.value==="") missing=true;
+
+data.push({
+name:i.id,
+qty:Number(i.value)
+});
+
+});
+
+if(missing){
+
+alert("Please fill in all stock levels before submitting.");
+
+return;
+
+}
+
+const confirmSubmit = confirm("Are you sure chef?");
+
+if(!confirmSubmit){
+return;
+}
+
+const res = await fetch(`${SCRIPT_URL}?action=submitStock&data=${encodeURIComponent(JSON.stringify(data))}`);
+
+const result = await res.json();
+
+showResult(result);
+
+}
+
+function showResult(data){
+
+document.getElementById("submitBtn").style.display="none";
+
+document.getElementById("resetBtn").style.display="block";
+
+const now = new Date();
+
+const options = {
+weekday:'long',
+day:'numeric',
+month:'long',
+hour:'2-digit',
+minute:'2-digit'
+};
+
+document.getElementById("lastSubmit").innerText =
+"Last stock submitted: " + now.toLocaleDateString('en-GB',options);
+
+data.forEach(item=>{
+
+const input=document.getElementById(item.prep);
+
+input.disabled=true;
+
+const container=document.getElementById("order_"+item.prep);
+
+const qty = item.order;
+
+let unitText = item.unit || "";
+
+if(qty !== 1 && unitText){
+
+if(unitText.endsWith("y"))
+unitText = unitText.slice(0,-1)+"ies";
+
+else if(!unitText.endsWith("s"))
+unitText += "s";
+
+}
+
+container.innerHTML = `
+<div class="ingredient">Order: ${qty}</div>
+<div class="unit">${unitText}</div>
+`;
+
+});
+
+}
+
+function newForm(){
+
+document.getElementById("submitBtn").style.display="block";
+
+document.getElementById("resetBtn").style.display="none";
+
+const inputs = document.querySelectorAll("input");
+
+inputs.forEach(i=>{
+i.disabled=false;
+i.value="";
+});
+
+const orders = document.querySelectorAll(".order");
+
+orders.forEach(o=>{
+o.innerHTML="";
+});
+
+document.getElementById("lastSubmit").innerText="";
+
+const firstInput=document.querySelector("input");
+
+if(firstInput) firstInput.focus();
+
+}
+
+setDate();
+
+loadIngredients();
+
+</script>
+
+</body>
+</html>
